@@ -1,0 +1,27 @@
+{
+  "courseSubtitle": "Horario Académico Demo · Ingeniería Informática",
+  "buildings": [
+    { "id": "NORTH", "displayName": "Edificio Norte", "shortLabel": "Norte", "colorHex": "#5BAED6" },
+    { "id": "CENTRAL", "displayName": "Aulario Central", "shortLabel": "Central", "colorHex": "#38B28B" },
+    { "id": "LABS", "displayName": "Laboratorios", "shortLabel": "Labs", "colorHex": "#B5896B" }
+  ],
+  "subjects": [
+    { "id": "SO", "abbr": "SO", "fullName": "Sistemas Operativos", "colorHex": "#5BAED6", "theoryTag": true },
+    { "id": "ALG", "abbr": "ALG", "fullName": "Estructuras de Datos y Algoritmia", "colorHex": "#DE6473", "theoryTag": true },
+    { "id": "BD", "abbr": "BD", "fullName": "Bases de Datos", "colorHex": "#A78BFA", "theoryTag": true },
+    { "id": "RED", "abbr": "RED", "fullName": "Redes de Computadores", "colorHex": "#D4A359", "fullTitleInLive": true },
+    { "id": "IS", "abbr": "IS", "fullName": "Ingeniería del Software", "colorHex": "#38B28B", "theoryTag": false }
+  ],
+  "sessions": [
+    { "id": "lun_so_prac", "day": "LUNES", "subjectId": "SO", "startMinutes": 540, "endMinutes": 630, "isPractice": true, "groupLabel": "Grupo A", "room": "Lab 1.2", "buildingId": "LABS" },
+    { "id": "lun_alg_teo", "day": "LUNES", "subjectId": "ALG", "startMinutes": 660, "endMinutes": 780, "isPractice": false, "room": "Aula 204", "buildingId": "NORTH" },
+    { "id": "lun_bd_teo", "day": "LUNES", "subjectId": "BD", "startMinutes": 900, "endMinutes": 1020, "isPractice": false, "room": "Aula 102", "buildingId": "CENTRAL" },
+    { "id": "mar_is_teo", "day": "MARTES", "subjectId": "IS", "startMinutes": 600, "endMinutes": 720, "isPractice": false, "room": "Aula 301", "buildingId": "NORTH" },
+    { "id": "mar_bd_prac", "day": "MARTES", "subjectId": "BD", "startMinutes": 750, "endMinutes": 840, "isPractice": true, "groupLabel": "Grupo B", "room": "Lab 2.1", "buildingId": "LABS" },
+    { "id": "mie_red_teo", "day": "MIERCOLES", "subjectId": "RED", "startMinutes": 570, "endMinutes": 690, "isPractice": false, "room": "Aula 108", "buildingId": "CENTRAL" },
+    { "id": "mie_alg_prac", "day": "MIERCOLES", "subjectId": "ALG", "startMinutes": 840, "endMinutes": 930, "isPractice": true, "groupLabel": "Grupo A", "room": "Lab 1.4", "buildingId": "LABS" },
+    { "id": "jue_so_teo", "day": "JUEVES", "subjectId": "SO", "startMinutes": 600, "endMinutes": 720, "isPractice": false, "room": "Aula 204", "buildingId": "NORTH" },
+    { "id": "jue_is_prac", "day": "JUEVES", "subjectId": "IS", "startMinutes": 780, "endMinutes": 870, "isPractice": true, "groupLabel": "Grupo A", "room": "Lab 2.3", "buildingId": "LABS" },
+    { "id": "vie_red_teo", "day": "VIERNES", "subjectId": "RED", "startMinutes": 600, "endMinutes": 720, "isPractice": false, "room": "Aula 108", "buildingId": "CENTRAL" }
+  ]
+}
