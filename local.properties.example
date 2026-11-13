@@ -1,0 +1,6 @@
+# Copia este archivo como local.properties (excluido por .gitignore)
+# y configura tu ruta de SDK y credenciales opcionales.
+
+# sdk.dir=/ruta/a/tu/Android/Sdk
+# nexus.oauthClientId=TU_CLIENT_ID.apps.googleusercontent.com
+# nexus.oauthRedirectUri=dev.quintero.nexus.app:/oauth2redirect

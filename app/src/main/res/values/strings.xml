@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Nexus</string>
+    <string name="tagline_hub">Espacio personal offline-first.</string>
+    <string name="tagline_nocturnal">Planifica bloques, gestiona conflictos y sincroniza con Google Calendar.</string>
+    <string name="tab_tasks">Tareas</string>
+    <string name="tab_timeline">Agenda</string>
+    <string name="tab_calendar_setup">Calendar</string>
+    <string name="quick_add_placeholder">Ej. Práctica Algoritmia o Repaso SQL #uni !alta @17:00 +60m</string>
+    <string name="empty_tasks_title">No hay actividades pendientes aquí</string>
+    <string name="empty_tasks_subtitle">Añade una tarea o práctica arriba, o créala directamente desde Mi Horario.</string>
+</resources>

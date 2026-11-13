@@ -1,0 +1,25 @@
+*.iml
+.gradle/
+.kotlin/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+.DS_Store
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Local SDK, secrets & private configs (never commit personal data)
+local.properties
+local-config/
+.env
+*.keystore
+*.jks
+*.apk
+*.aab
+google-services.json
+firebase-applet-config.json

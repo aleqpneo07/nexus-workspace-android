@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Minimalist Nocturnal 2x2 Bento Emblem inside 66x66 safe zone (21..87) -->
+    <!-- Top-left tile: Mi horario (Champagne Amber) -->
+    <path
+        android:fillColor="#262B38"
+        android:strokeColor="#D4A359"
+        android:strokeWidth="2.2"
+        android:pathData="M34,29 h13 a5,5 0 0 1 5,5 v13 a5,5 0 0 1 -5,5 h-13 a5,5 0 0 1 -5,-5 v-13 a5,5 0 0 1 5,-5 z" />
+    <path
+        android:fillColor="#D4A359"
+        android:pathData="M36.5,40.5 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0" />
+
+    <!-- Top-right tile: Entreno (Sage Emerald) -->
+    <path
+        android:fillColor="#262B38"
+        android:strokeColor="#38B28B"
+        android:strokeWidth="2.2"
+        android:pathData="M61,29 h13 a5,5 0 0 1 5,5 v13 a5,5 0 0 1 -5,5 h-13 a5,5 0 0 1 -5,-5 v-13 a5,5 0 0 1 5,-5 z" />
+    <path
+        android:fillColor="#38B28B"
+        android:pathData="M63.5,40.5 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0" />
+
+    <!-- Bottom-left tile: Night Planner (Soft Indigo) -->
+    <path
+        android:fillColor="#262B38"
+        android:strokeColor="#7C86F4"
+        android:strokeWidth="2.2"
+        android:pathData="M34,56 h13 a5,5 0 0 1 5,5 v13 a5,5 0 0 1 -5,5 h-13 a5,5 0 0 1 -5,-5 v-13 a5,5 0 0 1 5,-5 z" />
+    <path
+        android:fillColor="#7C86F4"
+        android:pathData="M36.5,67.5 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0" />
+
+    <!-- Bottom-right tile: Enfoque (Soft Coral) -->
+    <path
+        android:fillColor="#262B38"
+        android:strokeColor="#E07A5F"
+        android:strokeWidth="2.2"
+        android:pathData="M61,56 h13 a5,5 0 0 1 5,5 v13 a5,5 0 0 1 -5,5 h-13 a5,5 0 0 1 -5,-5 v-13 a5,5 0 0 1 5,-5 z" />
+    <path
+        android:fillColor="#E07A5F"
+        android:pathData="M63.5,67.5 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0" />
+</vector>
