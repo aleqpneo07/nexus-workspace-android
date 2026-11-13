@@ -1,0 +1,83 @@
+{
+  "courseSubtitle": "Horario Académico Demo · Ingeniería Informática",
+  "buildings": [
+    {
+      "id": "NORTH",
+      "displayName": "Edificio Norte",
+      "shortLabel": "Norte",
+      "colorHex": "#5BAED6"
+    },
+    {
+      "id": "CENTRAL",
+      "displayName": "Aulario Central",
+      "shortLabel": "Central",
+      "colorHex": "#38B28B"
+    },
+    {
+      "id": "LABS",
+      "displayName": "Laboratorios",
+      "shortLabel": "Labs",
+      "colorHex": "#B5896B"
+    }
+  ],
+  "subjects": [
+    {
+      "id": "SO",
+      "abbr": "SO",
+      "fullName": "Sistemas Operativos",
+      "colorHex": "#5BAED6",
+      "theoryTag": true
+    },
+    {
+      "id": "ALG",
+      "abbr": "ALG",
+      "fullName": "Estructuras de Datos y Algoritmia",
+      "colorHex": "#DE6473",
+      "theoryTag": true
+    },
+    {
+      "id": "BD",
+      "abbr": "BD",
+      "fullName": "Bases de Datos",
+      "colorHex": "#A78BFA",
+      "theoryTag": true
+    },
+    {
+      "id": "RED",
+      "abbr": "RED",
+      "fullName": "Redes de Computadores",
+      "colorHex": "#D4A359",
+      "fullTitleInLive": true
+    },
+    {
+      "id": "IS",
+      "abbr": "IS",
+      "fullName": "Ingeniería del Software",
+      "colorHex": "#38B28B",
+      "theoryTag": false
+    }
+  ],
+  "sessions": [
+    {
+      "id": "lun_so_prac",
+      "day": "LUNES",
+      "subjectId": "SO",
+      "startMinutes": 540,
+      "endMinutes": 630,
+      "isPractice": true,
+      "groupLabel": "Grupo A",
+      "room": "Lab 1.2",
+      "buildingId": "LABS"
+    },
+    {
+      "id": "lun_alg_teo",
+      "day": "LUNES",
+      "subjectId": "ALG",
+      "startMinutes": 660,
+      "endMinutes": 780,
+      "isPractice": false,
+      "room": "Aula 204",
+      "buildingId": "NORTH"
+    }
+  ]
+}
