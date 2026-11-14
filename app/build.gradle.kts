@@ -37,8 +37,10 @@ android {
             "NEXUS_OAUTH_REDIRECT_URI",
             "dev.quintero.nexus.app:/oauth2redirect"
         )
+        val geminiApiKey = readLocalConfig("nexus.geminiApiKey", "NEXUS_GEMINI_API_KEY")
         buildConfigField("String", "DEFAULT_OAUTH_CLIENT_ID", "\"$oauthClientId\"")
         buildConfigField("String", "OAUTH_REDIRECT_URI", "\"$oauthRedirectUri\"")
+        buildConfigField("String", "DEFAULT_GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     sourceSets {
@@ -137,6 +139,11 @@ dependencies {
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
     implementation(libs.retrofit)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.zxing.core)
 
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.core)

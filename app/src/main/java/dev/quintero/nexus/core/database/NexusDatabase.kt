@@ -10,6 +10,10 @@ import dev.quintero.nexus.core.util.DateTimeHelper
 import dev.quintero.nexus.feature.focus.EnfoqueDao
 import dev.quintero.nexus.feature.focus.EnfoqueSubtaskEntity
 import dev.quintero.nexus.feature.focus.EnfoqueTaskEntity
+import dev.quintero.nexus.feature.nutrition.NutritionDailyMetricEntity
+import dev.quintero.nexus.feature.nutrition.NutritionDao
+import dev.quintero.nexus.feature.nutrition.NutritionMealLogEntity
+import dev.quintero.nexus.feature.nutrition.NutritionProfileEntity
 import dev.quintero.nexus.feature.planner.NightTaskDao
 import dev.quintero.nexus.feature.planner.NightTaskEntity
 import dev.quintero.nexus.feature.planner.SyncState
@@ -27,9 +31,12 @@ import dev.quintero.nexus.feature.workout.WorkoutSessionEntity
         EnfoqueTaskEntity::class,
         EnfoqueSubtaskEntity::class,
         dev.quintero.nexus.feature.progress.BodyProgressEntryEntity::class,
-        dev.quintero.nexus.feature.progress.BodyProgressProfileEntity::class
+        dev.quintero.nexus.feature.progress.BodyProgressProfileEntity::class,
+        NutritionProfileEntity::class,
+        NutritionMealLogEntity::class,
+        NutritionDailyMetricEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class NexusDatabase : RoomDatabase() {
@@ -38,6 +45,7 @@ abstract class NexusDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
     abstract fun enfoqueDao(): EnfoqueDao
     abstract fun bodyProgressDao(): dev.quintero.nexus.feature.progress.BodyProgressDao
+    abstract fun nutritionDao(): NutritionDao
 
     companion object {
         @Volatile
@@ -166,6 +174,61 @@ abstract class NexusDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `nutrition_profile` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `weightKg` REAL NOT NULL,
+                        `targetWeightKg` REAL NOT NULL,
+                        `heightCm` INTEGER NOT NULL,
+                        `ageYears` INTEGER NOT NULL,
+                        `activityLevel` TEXT NOT NULL,
+                        `goalType` TEXT NOT NULL,
+                        `dailyCalorieGoal` INTEGER NOT NULL,
+                        `proteinGoalG` INTEGER NOT NULL,
+                        `carbsGoalG` INTEGER NOT NULL,
+                        `fatGoalG` INTEGER NOT NULL,
+                        `waterGoalMl` INTEGER NOT NULL,
+                        `updatedAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `nutrition_meal_logs` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `dateIso` TEXT NOT NULL,
+                        `mealType` TEXT NOT NULL,
+                        `foodName` TEXT NOT NULL,
+                        `brandOrSource` TEXT NOT NULL,
+                        `servingGrams` INTEGER NOT NULL,
+                        `calories` INTEGER NOT NULL,
+                        `proteinG` INTEGER NOT NULL,
+                        `carbsG` INTEGER NOT NULL,
+                        `fatG` INTEGER NOT NULL,
+                        `barcode` TEXT NOT NULL,
+                        `ingredientsSummary` TEXT NOT NULL,
+                        `nutriScore` TEXT NOT NULL,
+                        `updatedAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `nutrition_daily_metrics` (
+                        `dateIso` TEXT NOT NULL PRIMARY KEY,
+                        `waterMl` INTEGER NOT NULL,
+                        `loggedWeightKg` REAL,
+                        `notes` TEXT NOT NULL,
+                        `updatedAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): NexusDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -173,7 +236,7 @@ abstract class NexusDatabase : RoomDatabase() {
                     NexusDatabase::class.java,
                     "nexus_workspace.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

@@ -98,6 +98,8 @@ import dev.quintero.nexus.core.design.SyncSuccessGreen
 import dev.quintero.nexus.core.design.TextMoonlight
 import dev.quintero.nexus.core.design.TextMutedSlate
 import dev.quintero.nexus.core.design.TextStarlight
+import dev.quintero.nexus.feature.nutrition.NutritionModuleScreen
+import dev.quintero.nexus.feature.nutrition.NutritionViewModel
 import dev.quintero.nexus.feature.progress.BodyProgressModuleScreen
 import dev.quintero.nexus.feature.progress.BodyProgressViewModel
 import dev.quintero.nexus.feature.schedule.UniversityScheduleRepository
@@ -111,6 +113,7 @@ class MainActivity : ComponentActivity() {
     private val workoutViewModel: WorkoutViewModel by viewModels()
     private val enfoqueViewModel: EnfoqueViewModel by viewModels()
     private val bodyProgressViewModel: BodyProgressViewModel by viewModels()
+    private val nutritionViewModel: NutritionViewModel by viewModels()
     private val oAuthNavigationTick = MutableStateFlow(0)
     private val syncManager by lazy { MisCosasCloudSyncManager.getInstance(applicationContext) }
 
@@ -119,6 +122,7 @@ class MainActivity : ComponentActivity() {
         syncManager.onAppForegroundStart()
         workoutViewModel.refreshTodayDateIfNeeded()
         bodyProgressViewModel.refreshTodayDateIfNeeded()
+        nutritionViewModel.refreshTodayDateIfNeeded()
     }
 
     override fun onStop() {
@@ -138,6 +142,7 @@ class MainActivity : ComponentActivity() {
                 val workoutState by workoutViewModel.uiState.collectAsStateWithLifecycle()
                 val enfoqueState by enfoqueViewModel.uiState.collectAsStateWithLifecycle()
                 val bodyProgressState by bodyProgressViewModel.uiState.collectAsStateWithLifecycle()
+                val nutritionState by nutritionViewModel.uiState.collectAsStateWithLifecycle()
                 val cloudSyncState by syncManager.syncState.collectAsStateWithLifecycle()
                 val oAuthTick by oAuthNavigationTick.collectAsStateWithLifecycle()
 
@@ -161,7 +166,8 @@ class MainActivity : ComponentActivity() {
                                 onConnectCloud = { id, pin, cb -> syncManager.connectAccount(id, pin, cb) },
                                 onSyncNow = { cb -> syncManager.syncAllNow(cb) },
                                 onDisconnectCloud = { syncManager.disconnectAccount() },
-                                bodyProgressUiState = bodyProgressState
+                                bodyProgressUiState = bodyProgressState,
+                                nutritionUiState = nutritionState
                             )
                         }
 
@@ -200,6 +206,13 @@ class MainActivity : ComponentActivity() {
                         MisCosasModule.PROGRESO_FISICO -> {
                             BodyProgressModuleScreen(
                                 viewModel = bodyProgressViewModel,
+                                onBackToHub = { activeModule = MisCosasModule.HUB }
+                            )
+                        }
+
+                        MisCosasModule.NUTRICION -> {
+                            NutritionModuleScreen(
+                                viewModel = nutritionViewModel,
                                 onBackToHub = { activeModule = MisCosasModule.HUB }
                             )
                         }

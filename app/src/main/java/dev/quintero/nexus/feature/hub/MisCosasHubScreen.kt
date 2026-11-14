@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DonutLarge
 import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -105,7 +106,8 @@ enum class MisCosasModule {
     ENTRENO,
     NIGHT_PLANNER,
     ENFOQUE,
-    PROGRESO_FISICO
+    PROGRESO_FISICO,
+    NUTRICION
 }
 
 @Composable
@@ -209,7 +211,8 @@ fun MisCosasHubScreen(
     onConnectCloud: (String, String, (Result<String>) -> Unit) -> Unit = { _, _, cb -> cb(Result.success("")) },
     onSyncNow: ((Result<String>) -> Unit) -> Unit = { cb -> cb(Result.success("")) },
     onDisconnectCloud: () -> Unit = {},
-    bodyProgressUiState: dev.quintero.nexus.feature.progress.BodyProgressUiState = dev.quintero.nexus.feature.progress.BodyProgressUiState()
+    bodyProgressUiState: dev.quintero.nexus.feature.progress.BodyProgressUiState = dev.quintero.nexus.feature.progress.BodyProgressUiState(),
+    nutritionUiState: dev.quintero.nexus.feature.nutrition.NutritionUiState = dev.quintero.nexus.feature.nutrition.NutritionUiState()
 ) {
     val todayHuman = DateTimeHelper.formatFullDayShortEs(DateTimeHelper.todayIso())
     val uniLive = remember { UniversityScheduleRepository.resolveLiveStatus() }
@@ -397,6 +400,33 @@ fun MisCosasHubScreen(
                     bubbleColor = dev.quintero.nexus.core.design.SyncSuccessGreen.copy(alpha = 0.14f),
                     testTag = "hub_card_progreso",
                     onClick = { onOpenModule(MisCosasModule.PROGRESO_FISICO) }
+                )
+            }
+
+            item {
+                val consumedKcal = nutritionUiState.todayConsumedKcal
+                val goalKcal = nutritionUiState.profile.dailyCalorieGoal.coerceAtLeast(1000)
+                val proteinG = nutritionUiState.todayConsumedProteinG
+                val remainingKcal = goalKcal - consumedKcal
+                val nutritionSubtitle = if (consumedKcal > 0) {
+                    "$consumedKcal / $goalKcal kcal · ${proteinG}g prot · ${nutritionUiState.todayMetric.waterMl} ml agua"
+                } else {
+                    "Escáner QR/EAN · Foto IA · Meta $goalKcal kcal"
+                }
+                val nutritionBadge = if (remainingKcal >= 0) {
+                    "$remainingKcal LIBRES"
+                } else {
+                    "+${kotlin.math.abs(remainingKcal)} KCAL"
+                }
+                MinimalHubModuleCard(
+                    title = "Nutrición",
+                    subtitle = nutritionSubtitle,
+                    metaBadge = nutritionBadge,
+                    icon = Icons.Outlined.Restaurant,
+                    accentColor = MoonlightCyan,
+                    bubbleColor = MoonlightCyan.copy(alpha = 0.14f),
+                    testTag = "hub_card_nutricion",
+                    onClick = { onOpenModule(MisCosasModule.NUTRICION) }
                 )
             }
 
