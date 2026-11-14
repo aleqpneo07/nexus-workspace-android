@@ -148,6 +148,47 @@ class NutritionTest {
         )
         assertTrue(fallback.isSuccess)
         assertEquals(615, fallback.getOrNull()?.totalCalories)
+
+        // Test OCR parsing of a back-of-package Nutrition Table
+        val sampleBackLabelOcr = """
+            INFORMACIÓN NUTRICIONAL por 100 g
+            Valor energético 1335 kJ / 316 kcal
+            Grasas 7,5 g
+            de las cuales saturadas 1,1 g
+            Hidratos de carbono 52,0 g
+            de los cuales azúcares 2,4 g
+            Proteínas 8,6 g
+            Sal 1,2 g
+        """.trimIndent()
+        val labelResult = analyzer.parseNutritionTableFromOcrText(
+            rawOcrText = sampleBackLabelOcr,
+            userHint = "Tortitas de trigo"
+        )
+        assertNotNull(labelResult)
+        assertEquals(316, labelResult?.totalCalories)
+        assertEquals(9, labelResult?.proteinGrams)
+        assertEquals(52, labelResult?.carbsGrams)
+        assertEquals(8, labelResult?.fatGrams)
+
+        // Test OCR identification of the Almendras 0% Sal Añadida 200g front package
+        val almondsFrontOcr = "0% SAL AÑADIDA ADICIONADO 200g SIN GLUTEN"
+        val almondsResult = analyzer.analyzeBitmapWithOcrAndOpenFoodFacts(
+            ocrText = almondsFrontOcr,
+            userHint = ""
+        )
+        assertNotNull(almondsResult)
+        assertTrue(almondsResult?.dishName?.contains("Almendras", ignoreCase = true) == true)
+        assertEquals(179, almondsResult?.totalCalories) // 30g serving of 598 kcal/100g almonds = 179 kcal
+
+        // Test EAN extraction from QR URLs and Tortitas barcode 8480012029107
+        val offClient = OpenFoodFactsClient()
+        assertEquals(
+            "8480012029107",
+            offClient.extractEanFromRawCode("https://www.grupoifa.es/producto/8480012029107?qr=1")
+        )
+        val tortitasRes = offClient.fetchProductByBarcode("8480012029107")
+        assertTrue(tortitasRes.isSuccess)
+        assertTrue(tortitasRes.getOrNull()?.name?.contains("Tortitas", ignoreCase = true) == true)
     }
 
     @Test

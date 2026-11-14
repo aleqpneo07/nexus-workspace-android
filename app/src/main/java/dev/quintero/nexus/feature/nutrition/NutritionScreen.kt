@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
@@ -122,6 +123,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
@@ -153,14 +158,14 @@ import kotlin.math.roundToInt
 private data class SampleBarcodePreset(val label: String, val ean: String)
 
 private val sampleSpanishBarcodes = listOf(
+    SampleBarcodePreset("Tortitas Eliges", "8480012029107"),
+    SampleBarcodePreset("Almendras 0% Sal", "8480012015421"),
     SampleBarcodePreset("Yogur +Proteínas", "8480000105042"),
     SampleBarcodePreset("Copos de Avena", "4008713700626"),
     SampleBarcodePreset("Pavo 92%", "8480000591029"),
     SampleBarcodePreset("Atún al Natural", "8480000160126"),
     SampleBarcodePreset("Gazpacho Alvalle", "8410179100050"),
-    SampleBarcodePreset("Leche Pascual", "8410066000050"),
-    SampleBarcodePreset("Crema Cacahuete", "8480000174826"),
-    SampleBarcodePreset("Coca-Cola Zero", "5449000131805")
+    SampleBarcodePreset("Crema Cacahuete", "8480000174826")
 )
 
 @Composable
@@ -1403,37 +1408,46 @@ private fun NutritionBarcodeScannerContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.QrCodeScanner,
                                 contentDescription = null,
                                 tint = SyncSuccessGreen
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Lector de Código de Barras y QR",
+                                    text = "Lector Instantáneo EAN-13 y QR",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = TextMoonlight
+                                    color = TextMoonlight,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "Open Food Facts API + Catálogo Español Offline",
+                                    text = "ML Kit Vision + Open Food Facts",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = SyncSuccessGreen
+                                    color = SyncSuccessGreen,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                         if (hasCameraPermission) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             OutlinedButton(
                                 onClick = { isCameraActive = !isCameraActive },
                                 shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 modifier = Modifier.height(34.dp)
                             ) {
                                 Text(
                                     text = if (isCameraActive) "Pausar" else "Activar",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextStarlight
+                                    color = TextStarlight,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -1934,9 +1948,26 @@ private fun NutritionPlateAiContent(
 ) {
     val context = LocalContext.current
     var userHint by remember { mutableStateOf("") }
-    var useDescriptionContext by remember { mutableStateOf(true) }
+    var useDescriptionContext by remember { mutableStateOf(false) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var selectedMealType by remember(defaultMealType) { mutableStateOf(defaultMealType) }
+    var showLiveAiCamera by remember { mutableStateOf(true) }
+    var livePreviewRef by remember { mutableStateOf<PreviewView?>(null) }
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -1995,15 +2026,15 @@ private fun NutritionPlateAiContent(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Reconocimiento Visual de Platos con IA",
+                                text = "Escáner Visual IA · Productos, Tablas y Platos",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = TextMoonlight
                             )
                             Text(
                                 text = if (hasGeminiKey) {
-                                    "Gemini 2.5 Flash Multimodal conectado (API Key activa)"
+                                    "Gemini 2.5 Flash Multimodal + OCR de Etiquetas activo"
                                 } else {
-                                    "Modo Estimación Inteligente · Pulsa Configurar API para usar tu clave de AI Studio"
+                                    "OCR de Tablas Nutricionales + Reconocimiento de Envases activo · Pulsa Configurar API para Gemini Vision"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (hasGeminiKey) SyncSuccessGreen else NocturnalAmber
@@ -2013,16 +2044,17 @@ private fun NutritionPlateAiContent(
                             Text(
                                 text = if (hasGeminiKey) "API Key ✓" else "Configurar API",
                                 color = if (hasGeminiKey) SyncSuccessGreen else NocturnalAmber,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Selector de modo: 1) Solo Foto vs 2) Foto + Descripción
+                    // Selector de modo: 1) Solo Foto (Automático) vs 2) Foto + Descripción
                     Text(
-                        text = "Modo de análisis IA:",
+                        text = "¿Cómo quieres analizar el alimento?",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = TextStarlight
                     )
@@ -2034,7 +2066,7 @@ private fun NutritionPlateAiContent(
                         FilterChip(
                             selected = !useDescriptionContext,
                             onClick = { useDescriptionContext = false },
-                            label = { Text("📷 Solo Foto") },
+                            label = { Text("📷 Solo Foto (Auto)", maxLines = 1) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SyncSuccessGreen.copy(alpha = 0.22f),
                                 selectedLabelColor = SyncSuccessGreen
@@ -2044,7 +2076,7 @@ private fun NutritionPlateAiContent(
                         FilterChip(
                             selected = useDescriptionContext,
                             onClick = { useDescriptionContext = true },
-                            label = { Text("📝 Foto + Descripción") },
+                            label = { Text("📝 Foto + Nota", maxLines = 1) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = NocturnalAmber.copy(alpha = 0.25f),
                                 selectedLabelColor = NocturnalAmber
@@ -2053,13 +2085,20 @@ private fun NutritionPlateAiContent(
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "💡 Haz foto al frontal del envase (ej. Almendras, Tortitas), a la tabla nutricional trasera (kcal / proteínas / hidratos / grasas) o a tu plato servido.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMutedSlate
+                    )
+
                     if (useDescriptionContext) {
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = userHint,
                             onValueChange = { userHint = it },
-                            label = { Text("Contexto para la IA (cantidades, cocinado, aceite...)") },
-                            placeholder = { Text("Ej: Son 2 pechugas de pollo a la plancha con poco aceite y arroz") },
+                            label = { Text("Nota opcional para la IA (ej. 2 pechugas, gramos...)") },
+                            placeholder = { Text("Ej: Son 2 pechugas de pollo a la plancha con arroz") },
                             maxLines = 2,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2069,12 +2108,111 @@ private fun NutritionPlateAiContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // Visor en vivo de Alta Resolución (para leer tablas nutricionales y envases con nitidez total)
+                    if (hasCameraPermission && showLiveAiCamera) {
+                        val lifecycleOwner = LocalLifecycleOwner.current
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .border(1.5.dp, NocturnalAmber.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+                        ) {
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize(),
+                                factory = { ctx ->
+                                    val pv = PreviewView(ctx)
+                                    livePreviewRef = pv
+                                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                                    cameraProviderFuture.addListener({
+                                        try {
+                                            val cameraProvider = cameraProviderFuture.get()
+                                            val preview = Preview.Builder().build().also {
+                                                it.surfaceProvider = pv.surfaceProvider
+                                            }
+                                            cameraProvider.unbindAll()
+                                            cameraProvider.bindToLifecycle(
+                                                lifecycleOwner,
+                                                CameraSelector.DEFAULT_BACK_CAMERA,
+                                                preview
+                                            )
+                                        } catch (e: Exception) {
+                                            Log.e("NutritionAiCam", "Preview bind failed", e)
+                                        }
+                                    }, ContextCompat.getMainExecutor(ctx))
+                                    pv
+                                }
+                            )
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Enfoca el Producto, la Tabla Nutricional o el Plato",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = NocturnalAmber,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    val frameBmp = livePreviewRef?.bitmap
+                                    if (frameBmp != null) {
+                                        capturedBitmap = frameBmp
+                                        val effectiveHint = if (useDescriptionContext) userHint else ""
+                                        onAnalyzePhoto(frameBmp, effectiveHint)
+                                    } else {
+                                        takePictureLauncher.launch(null)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = NocturnalAmber,
+                                    contentColor = Color(0xFF1A1205)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 10.dp)
+                                    .testTag("capture_live_ai_photo_button")
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Capturar e Identificar con IA", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    } else if (!hasCameraPermission) {
+                        OutlinedButton(
+                            onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, NocturnalAmber),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = NocturnalAmber)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Activar Cámara HD en Vivo para Tablas y Envases", color = NocturnalAmber)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Button(
-                            onClick = { takePictureLauncher.launch(null) },
+                            onClick = {
+                                val frameBmp = if (hasCameraPermission && showLiveAiCamera) livePreviewRef?.bitmap else null
+                                if (frameBmp != null) {
+                                    capturedBitmap = frameBmp
+                                    val effectiveHint = if (useDescriptionContext) userHint else ""
+                                    onAnalyzePhoto(frameBmp, effectiveHint)
+                                } else {
+                                    takePictureLauncher.launch(null)
+                                }
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = NocturnalAmber,
                                 contentColor = Color(0xFF1A1205)
@@ -2088,8 +2226,9 @@ private fun NutritionPlateAiContent(
                             Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (useDescriptionContext) "Foto + Contexto" else "Hacer Foto",
-                                fontWeight = FontWeight.Bold
+                                text = if (useDescriptionContext) "Foto + Nota" else "Hacer Foto",
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
                             )
                         }
 
@@ -2107,7 +2246,7 @@ private fun NutritionPlateAiContent(
                         ) {
                             Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Galería", color = TextStarlight)
+                            Text("Galería", color = TextStarlight, maxLines = 1)
                         }
                     }
 
@@ -2245,12 +2384,26 @@ private fun NutritionPlateAiContent(
 
                 is PlateAiUiState.Analyzed -> {
                     val result = plateAiState.result
+                    val baseGrams = result.estimatedTotalGrams.coerceAtLeast(1)
                     var dishNameInput by remember(result) { mutableStateOf(result.dishName) }
                     var gramsInput by remember(result) { mutableStateOf(result.estimatedTotalGrams.toString()) }
                     var kcalInput by remember(result) { mutableStateOf(result.totalCalories.toString()) }
                     var proteinInput by remember(result) { mutableStateOf(result.proteinGrams.toString()) }
                     var carbsInput by remember(result) { mutableStateOf(result.carbsGrams.toString()) }
                     var fatInput by remember(result) { mutableStateOf(result.fatGrams.toString()) }
+
+                    fun applyGramsScale(newGramsText: String) {
+                        val cleaned = newGramsText.filter { ch -> ch.isDigit() }
+                        gramsInput = cleaned
+                        val g = cleaned.toIntOrNull()
+                        if (g != null && g > 0) {
+                            val ratio = g.toDouble() / baseGrams.toDouble()
+                            kcalInput = (result.totalCalories * ratio).roundToInt().toString()
+                            proteinInput = (result.proteinGrams * ratio).roundToInt().toString()
+                            carbsInput = (result.carbsGrams * ratio).roundToInt().toString()
+                            fatInput = (result.fatGrams * ratio).roundToInt().toString()
+                        }
+                    }
 
                     Surface(
                         color = NightCardSurface,
@@ -2270,7 +2423,7 @@ private fun NutritionPlateAiContent(
                                     text = if (result.usedLiveGeminiApi) {
                                         "ANÁLISIS GEMINI FLASH MULTIMODAL"
                                     } else {
-                                        "DESGLOSE NUTRICIONAL ESTIMADO"
+                                        "IDENTIFICACIÓN AUTOMÁTICA IA + OCR"
                                     },
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = NocturnalAmber
@@ -2295,7 +2448,7 @@ private fun NutritionPlateAiContent(
                             OutlinedTextField(
                                 value = dishNameInput,
                                 onValueChange = { dishNameInput = it },
-                                label = { Text("Nombre del plato") },
+                                label = { Text("Alimento / Producto identificado") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -2303,7 +2456,7 @@ private fun NutritionPlateAiContent(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             Text(
-                                text = "Ingredientes identificados:",
+                                text = "Desglose detectado:",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = TextStarlight
                             )
@@ -2338,13 +2491,41 @@ private fun NutritionPlateAiContent(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
+                            // Botones rápidos de ración (calculan kcal y macros al instante)
+                            Text(
+                                text = "Ración consumida (recalcula kcal y macros automáticamente):",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextStarlight
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(30, 50, 100, 150, 200, 300).forEach { quickG ->
+                                    FilterChip(
+                                        selected = gramsInput == quickG.toString(),
+                                        onClick = { applyGramsScale(quickG.toString()) },
+                                        label = { Text("${quickG}g") },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = SyncSuccessGreen.copy(alpha = 0.22f),
+                                            selectedLabelColor = SyncSuccessGreen
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 OutlinedTextField(
                                     value = gramsInput,
-                                    onValueChange = { gramsInput = it.filter { ch -> ch.isDigit() } },
+                                    onValueChange = { applyGramsScale(it) },
                                     label = { Text("Gramos") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -3162,7 +3343,22 @@ private fun CameraBarcodePreview(
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    val reader = remember {
+    val mlKitScanner = remember {
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E,
+                Barcode.FORMAT_QR_CODE,
+                Barcode.FORMAT_CODE_128,
+                Barcode.FORMAT_DATA_MATRIX
+            )
+            .build()
+        BarcodeScanning.getClient(options)
+    }
+
+    val zxingReader = remember {
         MultiFormatReader().apply {
             val hints = EnumMap<DecodeHintType, Any>(DecodeHintType::class.java)
             hints[DecodeHintType.POSSIBLE_FORMATS] = listOf(
@@ -3173,12 +3369,17 @@ private fun CameraBarcodePreview(
                 BarcodeFormat.QR_CODE,
                 BarcodeFormat.CODE_128
             )
+            hints[DecodeHintType.TRY_HARDER] = java.lang.Boolean.TRUE
             setHints(hints)
         }
     }
 
     DisposableEffect(Unit) {
         onDispose {
+            try {
+                mlKitScanner.close()
+            } catch (_: Exception) {
+            }
             cameraExecutor.shutdown()
         }
     }
@@ -3199,7 +3400,11 @@ private fun CameraBarcodePreview(
                         .build()
                         .also { analysis ->
                             analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                                decodeBarcodeFromImageProxy(imageProxy, reader) { detectedCode ->
+                                decodeBarcodeFromImageProxy(
+                                    imageProxy = imageProxy,
+                                    mlKitScanner = mlKitScanner,
+                                    zxingReader = zxingReader
+                                ) { detectedCode ->
                                     previewView.post {
                                         onBarcodeDetected(detectedCode)
                                     }
@@ -3223,7 +3428,49 @@ private fun CameraBarcodePreview(
     )
 }
 
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 private fun decodeBarcodeFromImageProxy(
+    imageProxy: ImageProxy,
+    mlKitScanner: com.google.mlkit.vision.barcode.BarcodeScanner,
+    zxingReader: MultiFormatReader,
+    onFound: (String) -> Unit
+) {
+    val mediaImage = imageProxy.image
+    if (mediaImage != null) {
+        try {
+            val inputImage = InputImage.fromMediaImage(
+                mediaImage,
+                imageProxy.imageInfo.rotationDegrees
+            )
+            mlKitScanner.process(inputImage)
+                .addOnSuccessListener { barcodes ->
+                    val match = barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }?.rawValue
+                    if (!match.isNullOrBlank()) {
+                        onFound(match)
+                    } else {
+                        tryZxingFallback(imageProxy, zxingReader, onFound)
+                    }
+                }
+                .addOnFailureListener {
+                    tryZxingFallback(imageProxy, zxingReader, onFound)
+                }
+                .addOnCompleteListener {
+                    imageProxy.close()
+                }
+            return
+        } catch (_: Exception) {
+            // Fall through to ZXing fallback
+        }
+    }
+
+    try {
+        tryZxingFallback(imageProxy, zxingReader, onFound)
+    } finally {
+        imageProxy.close()
+    }
+}
+
+private fun tryZxingFallback(
     imageProxy: ImageProxy,
     reader: MultiFormatReader,
     onFound: (String) -> Unit
@@ -3231,30 +3478,47 @@ private fun decodeBarcodeFromImageProxy(
     try {
         val plane = imageProxy.planes.firstOrNull() ?: return
         val buffer = plane.buffer
-        val data = ByteArray(buffer.remaining())
-        buffer.get(data)
+        buffer.rewind()
+        val rowStride = plane.rowStride
         val width = imageProxy.width
         val height = imageProxy.height
-        val source = PlanarYUVLuminanceSource(
-            data,
-            width,
-            height,
-            0,
-            0,
-            width,
-            height,
-            false
-        )
-        val bitmap = BinaryBitmap(HybridBinarizer(source))
-        val result = reader.decodeWithState(bitmap)
-        val text = result.text
-        if (!text.isNullOrBlank()) {
-            onFound(text)
+        val raw = ByteArray(buffer.remaining())
+        buffer.get(raw)
+
+        // Extraer luminancia limpia sin padding de rowStride
+        val yData = ByteArray(width * height)
+        for (row in 0 until height) {
+            val srcOffset = row * rowStride
+            if (srcOffset + width <= raw.size) {
+                System.arraycopy(raw, srcOffset, yData, row * width, width)
+            }
+        }
+
+        // Intentar orientación original
+        val source1 = PlanarYUVLuminanceSource(yData, width, height, 0, 0, width, height, false)
+        val text1 = runCatching { reader.decodeWithState(BinaryBitmap(HybridBinarizer(source1))).text }.getOrNull()
+        reader.reset()
+        if (!text1.isNullOrBlank()) {
+            onFound(text1)
+            return
+        }
+
+        // Intentar rotado 90 grados (vital para códigos 1D EAN-13 con el móvil en vertical)
+        val rotated = ByteArray(width * height)
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                rotated[x * height + (height - y - 1)] = yData[y * width + x]
+            }
+        }
+        val source2 = PlanarYUVLuminanceSource(rotated, height, width, 0, 0, height, width, false)
+        val text2 = runCatching { reader.decodeWithState(BinaryBitmap(HybridBinarizer(source2))).text }.getOrNull()
+        reader.reset()
+        if (!text2.isNullOrBlank()) {
+            onFound(text2)
         }
     } catch (_: Exception) {
-        // Frame did not contain a barcode
+        // Ignorar frame sin código
     } finally {
         reader.reset()
-        imageProxy.close()
     }
 }
