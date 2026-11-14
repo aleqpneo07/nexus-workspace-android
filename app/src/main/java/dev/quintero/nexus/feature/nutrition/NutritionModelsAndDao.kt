@@ -47,12 +47,13 @@ enum class NutritionGoalType(
     val calorieDelta: Int
 ) {
     DEFICIT("Definición (-400 kcal)", "Definición", -400),
-    MAINTAIN("Mantenimiento", "Mantenimiento", 0),
-    SURPLUS("Volumen (+300 kcal)", "Volumen", 300);
+    MAINTAIN("Mantenimiento (0 kcal)", "Mantenimiento", 0),
+    SURPLUS("Volumen (+350 kcal)", "Superávit +350", 350),
+    BULK_HIGH("Superávit Alto (+550 kcal)", "Superávit +550", 550);
 
     companion object {
         fun fromName(value: String): NutritionGoalType =
-            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: DEFICIT
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: SURPLUS
     }
 }
 
@@ -60,16 +61,16 @@ enum class NutritionGoalType(
 data class NutritionProfileEntity(
     @PrimaryKey val id: String = "primary",
     val weightKg: Double = 78.0,
-    val targetWeightKg: Double = 74.0,
+    val targetWeightKg: Double = 84.0,
     val heightCm: Int = 180,
     val ageYears: Int = 24,
-    val activityLevel: String = NutritionActivityLevel.MODERATE.name,
-    val goalType: String = NutritionGoalType.DEFICIT.name,
-    val dailyCalorieGoal: Int = 2250,
-    val proteinGoalG: Int = 160,
-    val carbsGoalG: Int = 235,
-    val fatGoalG: Int = 65,
-    val waterGoalMl: Int = 2750,
+    val activityLevel: String = NutritionActivityLevel.ACTIVE.name,
+    val goalType: String = NutritionGoalType.BULK_HIGH.name,
+    val dailyCalorieGoal: Int = 3150,
+    val proteinGoalG: Int = 165,
+    val carbsGoalG: Int = 425,
+    val fatGoalG: Int = 88,
+    val waterGoalMl: Int = 3000,
     val updatedAtMillis: Long = System.currentTimeMillis()
 )
 
@@ -327,28 +328,41 @@ interface NutritionDao {
 
 object NutritionDomainHelper {
 
+    fun estimateMaintenanceTdee(
+        weightKg: Double,
+        heightCm: Int,
+        ageYears: Int,
+        activity: NutritionActivityLevel
+    ): Int {
+        val safeWeight = weightKg.coerceIn(35.0, 260.0)
+        val safeHeight = heightCm.coerceIn(120, 240)
+        val safeAge = ageYears.coerceIn(14, 100)
+        val bmr = (10.0 * safeWeight) + (6.25 * safeHeight.toDouble()) - (5.0 * safeAge.toDouble()) + 5.0
+        return (bmr * activity.multiplier).roundToInt().coerceIn(1200, 5500)
+    }
+
     fun calculateTargets(
         weightKg: Double,
         targetWeightKg: Double,
         heightCm: Int,
         ageYears: Int,
         activity: NutritionActivityLevel,
-        goal: NutritionGoalType
+        goal: NutritionGoalType,
+        customDailyCalories: Int? = null
     ): NutritionProfileEntity {
         val safeWeight = weightKg.coerceIn(35.0, 260.0)
         val safeTargetWeight = targetWeightKg.coerceIn(35.0, 260.0)
         val safeHeight = heightCm.coerceIn(120, 240)
         val safeAge = ageYears.coerceIn(14, 100)
 
-        // Mifflin-St Jeor base BMR
-        val bmr = (10.0 * safeWeight) + (6.25 * safeHeight.toDouble()) - (5.0 * safeAge.toDouble()) + 5.0
-        val tdee = bmr * activity.multiplier
-        val targetCalories = (tdee + goal.calorieDelta).roundToInt().coerceIn(1200, 6000)
-        val proteinG = (safeWeight * 2.0).roundToInt().coerceIn(60, 350)
-        val fatG = ((targetCalories * 0.27) / 9.0).roundToInt().coerceIn(35, 200)
+        val tdee = estimateMaintenanceTdee(safeWeight, safeHeight, safeAge, activity)
+        val targetCalories = (customDailyCalories ?: (tdee + goal.calorieDelta))
+            .coerceIn(1200, 6500)
+        val proteinG = (safeWeight * 2.1).roundToInt().coerceIn(60, 350)
+        val fatG = ((targetCalories * 0.25) / 9.0).roundToInt().coerceIn(35, 220)
         val remainingKcal = (targetCalories - (proteinG * 4) - (fatG * 9)).coerceAtLeast(200)
-        val carbsG = (remainingKcal / 4.0).roundToInt().coerceIn(50, 800)
-        val waterMl = (safeWeight * 35.0).roundToInt().coerceIn(1500, 5000)
+        val carbsG = (remainingKcal / 4.0).roundToInt().coerceIn(50, 950)
+        val waterMl = (safeWeight * 38.0).roundToInt().coerceIn(1500, 5000)
 
         return NutritionProfileEntity(
             id = "primary",

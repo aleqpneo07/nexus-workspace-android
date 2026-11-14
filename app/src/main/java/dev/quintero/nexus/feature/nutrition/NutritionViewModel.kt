@@ -336,7 +336,8 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         heightCm: Int,
         ageYears: Int,
         activity: NutritionActivityLevel,
-        goal: NutritionGoalType
+        goal: NutritionGoalType,
+        customDailyCalories: Int? = null
     ) {
         val calculated = NutritionDomainHelper.calculateTargets(
             weightKg = weightKg,
@@ -344,12 +345,13 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
             heightCm = heightCm,
             ageYears = ageYears,
             activity = activity,
-            goal = goal
+            goal = goal,
+            customDailyCalories = customDailyCalories
         )
         viewModelScope.launch(Dispatchers.IO) {
             repository.saveProfile(calculated)
             withContext(Dispatchers.Main) {
-                showToast("Metas actualizadas: ${calculated.dailyCalorieGoal} kcal/día")
+                showToast("Metas actualizadas: ${calculated.dailyCalorieGoal} kcal/día (${goal.shortBadgeEs})")
             }
         }
     }

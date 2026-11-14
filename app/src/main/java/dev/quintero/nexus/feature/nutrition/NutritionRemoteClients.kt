@@ -125,6 +125,61 @@ class OpenFoodFactsClient {
             fatPer100g = 31,
             servingGramsDefault = 25,
             nutriScore = "E"
+        ),
+        ScannedProductInfo(
+            barcode = "8480000051127",
+            name = "Arroz Basmati Aromático",
+            brand = "Hacendado",
+            caloriesPer100g = 351,
+            proteinPer100g = 9,
+            carbsPer100g = 77,
+            fatPer100g = 1,
+            servingGramsDefault = 100,
+            nutriScore = "A"
+        ),
+        ScannedProductInfo(
+            barcode = "8480000231406",
+            name = "Pechuga de Pollo Entera Fileteada",
+            brand = "Hacendado",
+            caloriesPer100g = 112,
+            proteinPer100g = 23,
+            carbsPer100g = 0,
+            fatPer100g = 2,
+            servingGramsDefault = 250,
+            nutriScore = "A"
+        ),
+        ScannedProductInfo(
+            barcode = "8480000142207",
+            name = "Huevos Camperos Categoría L",
+            brand = "Hacendado",
+            caloriesPer100g = 148,
+            proteinPer100g = 13,
+            carbsPer100g = 1,
+            fatPer100g = 10,
+            servingGramsDefault = 180,
+            nutriScore = "A"
+        ),
+        ScannedProductInfo(
+            barcode = "8480000083418",
+            name = "Pan de Molde 100% Harina Integral",
+            brand = "Hacendado",
+            caloriesPer100g = 246,
+            proteinPer100g = 10,
+            carbsPer100g = 41,
+            fatPer100g = 4,
+            servingGramsDefault = 80,
+            nutriScore = "A"
+        ),
+        ScannedProductInfo(
+            barcode = "8480000040114",
+            name = "Aceite de Oliva Virgen Extra (AOVE)",
+            brand = "Hacendado",
+            caloriesPer100g = 884,
+            proteinPer100g = 0,
+            carbsPer100g = 0,
+            fatPer100g = 100,
+            servingGramsDefault = 15,
+            nutriScore = "B"
         )
     )
 
@@ -301,7 +356,10 @@ class GeminiPlateAiAnalyzer {
                     append("Identifica todos los alimentos visibles en el plato, estima el peso en gramos de cada ingrediente ")
                     append("y calcula las calorías totales y macronutrientes (proteínas, carbohidratos y grasas). ")
                     if (userHint.isNotBlank()) {
-                        append("Contexto adicional del usuario: $userHint. ")
+                        append("IMPORTANTE - CONTEXTO Y DESCRIPCIÓN DEL USUARIO: \"$userHint\". ")
+                        append("Respeta estrictamente las cantidades o unidades indicadas (por ejemplo, si indica 2 pechugas, gramos exactos o método de cocción como plancha, airfryer, horno o aceite utilizado) y combínalo con lo que ves en la foto. ")
+                    } else {
+                        append("Modo solo foto: estima visualmente el tamaño de la ración y el método de preparación probable. ")
                     }
                     append("Responde exclusivamente en formato JSON válido en español.")
                 }
@@ -465,24 +523,54 @@ class GeminiPlateAiAnalyzer {
             }
 
             else -> {
-                val customTitle = userHint.trim().takeIf { it.length >= 4 }?.replaceFirstChar { it.uppercaseChar() }
-                    ?: "Pechuga de Pollo a la Plancha con Arroz Basmati y Brócoli"
-                AiPlateAnalysisResult(
-                    dishName = customTitle,
-                    estimatedTotalGrams = 420,
-                    totalCalories = 540,
-                    proteinGrams = 48,
-                    carbsGrams = 60,
-                    fatGrams = 10,
-                    detectedIngredients = listOf(
-                        "Pechuga de pollo a la plancha (180g)",
-                        "Arroz basmati cocido (150g)",
-                        "Brócoli al vapor (90g)",
-                        "Aceite de oliva virgen extra (5g)"
-                    ),
-                    confidenceNote = "Plato equilibrado para recomposición corporal y ganancia muscular. $modeSuffix",
-                    usedLiveGeminiApi = false
-                )
+                val isDoubleChicken = hintLower.contains("2 pechuga") ||
+                    hintLower.contains("dos pechuga") ||
+                    hintLower.contains("doble pechuga") ||
+                    hintLower.contains("300g") ||
+                    hintLower.contains("250g")
+                val cookingDetail = when {
+                    hintLower.contains("airfryer") || hintLower.contains("freidora de aire") -> "en Airfryer sin aceite"
+                    hintLower.contains("horno") -> "al Horno"
+                    else -> "a la Plancha con AOVE"
+                }
+                if (isDoubleChicken) {
+                    val customTitle = userHint.trim().takeIf { it.length >= 4 }?.replaceFirstChar { it.uppercaseChar() }
+                        ?: "2 Pechugas de Pollo $cookingDetail con Guarnición"
+                    AiPlateAnalysisResult(
+                        dishName = customTitle,
+                        estimatedTotalGrams = 480,
+                        totalCalories = 685,
+                        proteinGrams = 72,
+                        carbsGrams = 64,
+                        fatGrams = 14,
+                        detectedIngredients = listOf(
+                            "2 Pechugas de pollo $cookingDetail (280g)",
+                            "Arroz basmati o guarnición (150g)",
+                            "Verduras salteadas / AOVE (50g)"
+                        ),
+                        confidenceNote = "Contexto aplicado (2 pechugas · $cookingDetail): alta carga proteica ideal para superávit calórico. $modeSuffix",
+                        usedLiveGeminiApi = false
+                    )
+                } else {
+                    val customTitle = userHint.trim().takeIf { it.length >= 4 }?.replaceFirstChar { it.uppercaseChar() }
+                        ?: "Pechuga de Pollo a la Plancha con Arroz Basmati y Brócoli"
+                    AiPlateAnalysisResult(
+                        dishName = customTitle,
+                        estimatedTotalGrams = 420,
+                        totalCalories = 540,
+                        proteinGrams = 48,
+                        carbsGrams = 60,
+                        fatGrams = 10,
+                        detectedIngredients = listOf(
+                            "Pechuga de pollo a la plancha (180g)",
+                            "Arroz basmati cocido (150g)",
+                            "Brócoli al vapor (90g)",
+                            "Aceite de oliva virgen extra (5g)"
+                        ),
+                        confidenceNote = "Plato equilibrado para recomposición corporal y ganancia muscular. $modeSuffix",
+                        usedLiveGeminiApi = false
+                    )
+                }
             }
         }
     }

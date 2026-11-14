@@ -57,10 +57,22 @@ class NutritionTest {
             goal = NutritionGoalType.DEFICIT
         )
         // BMR = 800 + 1125 - 125 + 5 = 1805
-        // TDEE = 1805 * 1.55 = 2797.75 -> Deficit (-400) = 2398 kcal
+        // TDEE = 1805 * 1.55 = 2798 -> Deficit (-400) = 2398 kcal
         assertEquals(2398, profile.dailyCalorieGoal)
-        assertEquals(160, profile.proteinGoalG)
-        assertEquals(2800, profile.waterGoalMl)
+        assertEquals(168, profile.proteinGoalG)
+        assertEquals(3040, profile.waterGoalMl)
+
+        val surplusProfile = NutritionDomainHelper.calculateTargets(
+            weightKg = 78.0,
+            targetWeightKg = 84.0,
+            heightCm = 180,
+            ageYears = 24,
+            activity = NutritionActivityLevel.ACTIVE,
+            goal = NutritionGoalType.BULK_HIGH,
+            customDailyCalories = 3150
+        )
+        assertEquals(3150, surplusProfile.dailyCalorieGoal)
+        assertTrue(surplusProfile.carbsGoalG >= 380)
 
         val offClient = OpenFoodFactsClient()
         val oats = offClient.offlineSpanishCatalog.first { it.barcode == "4008713700626" }

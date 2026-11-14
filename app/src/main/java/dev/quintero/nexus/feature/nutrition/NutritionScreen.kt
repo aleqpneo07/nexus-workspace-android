@@ -644,10 +644,22 @@ private fun NutritionDailyDashboardContent(
 
         // Calorie Ring & Macros Hero Card
         item {
+            val activeGoalType = NutritionGoalType.fromName(state.profile.goalType)
+            val activeActivity = NutritionActivityLevel.fromName(state.profile.activityLevel)
+            val maintenanceTdee = NutritionDomainHelper.estimateMaintenanceTdee(
+                weightKg = state.profile.weightKg,
+                heightCm = state.profile.heightCm,
+                ageYears = state.profile.ageYears,
+                activity = activeActivity
+            )
+            val surplusOrDeficitDelta = goalCalories - maintenanceTdee
             CalorieAndMacrosCard(
                 consumedCalories = totalCalories,
                 goalCalories = goalCalories,
                 remainingCalories = remainingCalories,
+                goalBadgeText = activeGoalType.shortBadgeEs,
+                surplusDeltaKcal = surplusOrDeficitDelta,
+                maintenanceTdee = maintenanceTdee,
                 proteinG = totalProtein,
                 proteinGoalG = state.profile.proteinGoalG,
                 carbsG = totalCarbs,
@@ -739,6 +751,9 @@ private fun CalorieAndMacrosCard(
     consumedCalories: Int,
     goalCalories: Int,
     remainingCalories: Int,
+    goalBadgeText: String,
+    surplusDeltaKcal: Int,
+    maintenanceTdee: Int,
     proteinG: Int,
     proteinGoalG: Int,
     carbsG: Int,
@@ -763,6 +778,44 @@ private fun CalorieAndMacrosCard(
             modifier = Modifier.padding(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val deltaLabel = when {
+                surplusDeltaKcal > 0 -> "SUPERÁVIT CALÓRICO (+$surplusDeltaKcal kcal sobre $maintenanceTdee kcal)"
+                surplusDeltaKcal < 0 -> "DÉFICIT CALÓRICO ($surplusDeltaKcal kcal sobre $maintenanceTdee kcal)"
+                else -> "MANTENIMIENTO ($maintenanceTdee kcal)"
+            }
+            Surface(
+                color = if (surplusDeltaKcal > 0) NocturnalAmber.copy(alpha = 0.16f) else NightBgDeep,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(
+                    1.dp,
+                    if (surplusDeltaKcal > 0) NocturnalAmber.copy(alpha = 0.45f) else MinimalHairline
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🔥 $deltaLabel",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (surplusDeltaKcal > 0) NocturnalAmber else SyncSuccessGreen,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = goalBadgeText,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextMoonlight
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -785,7 +838,7 @@ private fun CalorieAndMacrosCard(
                     modifier = Modifier.size(136.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    val ringColor = if (remainingCalories >= 0) NocturnalAmber else ConflictWarningRed
+                    val ringColor = if (remainingCalories >= 0) NocturnalAmber else SyncSuccessGreen
                     Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val strokeWidth = 12.dp.toPx()
                         drawArc(
@@ -807,10 +860,10 @@ private fun CalorieAndMacrosCard(
                         Text(
                             text = "${abs(remainingCalories)}",
                             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                            color = if (remainingCalories >= 0) TextMoonlight else ConflictWarningRed
+                            color = if (remainingCalories >= 0) TextMoonlight else SyncSuccessGreen
                         )
                         Text(
-                            text = if (remainingCalories >= 0) "KCAL LIBRES" else "KCAL EXTRA",
+                            text = if (remainingCalories >= 0) "POR CONSUMIR" else "META LOGRADA",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMutedSlate
                         )
@@ -824,7 +877,7 @@ private fun CalorieAndMacrosCard(
                         color = SyncSuccessGreen
                     )
                     Text(
-                        text = "OBJETIVO",
+                        text = "META DÍA",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextMutedSlate
                     )
@@ -1143,6 +1196,8 @@ private fun MealSectionCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     logs.forEach { log ->
+                        val isAiLog = log.brandOrSource.contains("IA", ignoreCase = true)
+                        val isBarcodeLog = log.barcode.isNotBlank() || log.brandOrSource.contains("EAN", ignoreCase = true)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1150,54 +1205,135 @@ private fun MealSectionCard(
                                 .background(NightBgDeep)
                                 .border(1.dp, MinimalHairline, RoundedCornerShape(14.dp))
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Columna 1: Icono de origen alineado
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        when {
+                                            isAiLog -> NocturnalAmber.copy(alpha = 0.16f)
+                                            isBarcodeLog -> SyncSuccessGreen.copy(alpha = 0.16f)
+                                            else -> NightCardSurface
+                                        }
+                                    )
+                                    .border(
+                                        1.dp,
+                                        when {
+                                            isAiLog -> NocturnalAmber.copy(alpha = 0.4f)
+                                            isBarcodeLog -> SyncSuccessGreen.copy(alpha = 0.4f)
+                                            else -> MinimalHairline
+                                        },
+                                        RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = when {
+                                        isAiLog -> Icons.Default.AutoAwesome
+                                        isBarcodeLog -> Icons.Default.QrCodeScanner
+                                        else -> Icons.Default.Restaurant
+                                    },
+                                    contentDescription = null,
+                                    tint = when {
+                                        isAiLog -> NocturnalAmber
+                                        isBarcodeLog -> SyncSuccessGreen
+                                        else -> TextStarlight
+                                    },
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            // Columna 2: Nombre + Metadatos + Macros segmentados
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = log.foodName,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = TextMoonlight,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
                                     Text(
-                                        text = log.foodName,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = TextMoonlight,
+                                        text = "${log.brandOrSource} · ${log.servingGrams} g",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMutedSlate,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     if (log.nutriScore.isNotBlank()) {
-                                        Spacer(modifier = Modifier.width(6.dp))
                                         NutriScoreBadge(grade = log.nutriScore)
                                     }
                                 }
-                                Text(
-                                    text = "${log.brandOrSource} · ${log.servingGrams}g · P:${log.proteinG}g C:${log.carbsG}g G:${log.fatG}g",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextMutedSlate
-                                )
-                                if (log.ingredientsSummary.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Text(
-                                        text = "IA: ${log.ingredientsSummary}",
+                                        text = "P: ${log.proteinG}g",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = SyncSuccessGreen
+                                    )
+                                    Text(
+                                        text = "C: ${log.carbsG}g",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MoonlightCyan
+                                    )
+                                    Text(
+                                        text = "G: ${log.fatG}g",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = NocturnalAmber
+                                    )
+                                }
+                                if (log.ingredientsSummary.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Contexto IA: ${log.ingredientsSummary}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = NocturnalAmber,
+                                        color = TextMutedSlate,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
+
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${log.calories} kcal",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = SyncSuccessGreen
-                            )
+
+                            // Columna 3: Calorías y borrado alineados a la derecha
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "${log.calories}",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = SyncSuccessGreen
+                                )
+                                Text(
+                                    text = "kcal",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMutedSlate
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
                                 onClick = { onDeleteLog(log.id) },
-                                modifier = Modifier.size(32.dp)
+                                modifier = Modifier.size(30.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DeleteOutline,
                                     contentDescription = "Eliminar ${log.foodName}",
                                     tint = TextMutedSlate,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
@@ -1798,13 +1934,17 @@ private fun NutritionPlateAiContent(
 ) {
     val context = LocalContext.current
     var userHint by remember { mutableStateOf("") }
+    var useDescriptionContext by remember { mutableStateOf(true) }
+    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var selectedMealType by remember(defaultMealType) { mutableStateOf(defaultMealType) }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            onAnalyzePhoto(bitmap, userHint)
+            capturedBitmap = bitmap
+            val effectiveHint = if (useDescriptionContext) userHint else ""
+            onAnalyzePhoto(bitmap, effectiveHint)
         }
     }
 
@@ -1823,7 +1963,9 @@ private fun NutritionPlateAiContent(
                     MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
                 }
                 if (bmp != null) {
-                    onAnalyzePhoto(bmp, userHint)
+                    capturedBitmap = bmp
+                    val effectiveHint = if (useDescriptionContext) userHint else ""
+                    onAnalyzePhoto(bmp, effectiveHint)
                 }
             } catch (_: Exception) {
                 // Ignore decode failure
@@ -1859,7 +2001,7 @@ private fun NutritionPlateAiContent(
                             )
                             Text(
                                 text = if (hasGeminiKey) {
-                                    "Gemini Flash Multimodal conectado (API Key activa)"
+                                    "Gemini 2.5 Flash Multimodal conectado (API Key activa)"
                                 } else {
                                     "Modo Estimación Inteligente · Pulsa Configurar API para usar tu clave de AI Studio"
                                 },
@@ -1878,16 +2020,52 @@ private fun NutritionPlateAiContent(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    OutlinedTextField(
-                        value = userHint,
-                        onValueChange = { userHint = it },
-                        label = { Text("Descripción o contexto opcional del plato") },
-                        placeholder = { Text("Ej: 180g de pollo a la plancha con arroz y brócoli") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ai_plate_hint_input")
+                    // Selector de modo: 1) Solo Foto vs 2) Foto + Descripción
+                    Text(
+                        text = "Modo de análisis IA:",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextStarlight
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = !useDescriptionContext,
+                            onClick = { useDescriptionContext = false },
+                            label = { Text("📷 Solo Foto") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SyncSuccessGreen.copy(alpha = 0.22f),
+                                selectedLabelColor = SyncSuccessGreen
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = useDescriptionContext,
+                            onClick = { useDescriptionContext = true },
+                            label = { Text("📝 Foto + Descripción") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = NocturnalAmber.copy(alpha = 0.25f),
+                                selectedLabelColor = NocturnalAmber
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    if (useDescriptionContext) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = userHint,
+                            onValueChange = { userHint = it },
+                            label = { Text("Contexto para la IA (cantidades, cocinado, aceite...)") },
+                            placeholder = { Text("Ej: Son 2 pechugas de pollo a la plancha con poco aceite y arroz") },
+                            maxLines = 2,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("ai_plate_hint_input")
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -1909,7 +2087,10 @@ private fun NutritionPlateAiContent(
                         ) {
                             Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Hacer Foto", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (useDescriptionContext) "Foto + Contexto" else "Hacer Foto",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
                         OutlinedButton(
@@ -1930,10 +2111,33 @@ private fun NutritionPlateAiContent(
                         }
                     }
 
+                    if (useDescriptionContext && userHint.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onAnalyzePhoto(capturedBitmap, userHint) },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, NocturnalAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = NocturnalAmber,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Recalcular con esta descripción",
+                                color = NocturnalAmber,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "O analiza al instante por descripción / plato tipo:",
+                        text = "Ejemplos rápidos (con contexto de preparación):",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextMutedSlate
                     )
@@ -1946,6 +2150,7 @@ private fun NutritionPlateAiContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val sampleDishes = listOf(
+                            "2 Pechugas de pollo a la plancha con arroz",
                             "Pollo con arroz basmati y brócoli",
                             "Poke de salmón, quinoa y aguacate",
                             "Bowl de avena, proteína y plátano",
@@ -1957,7 +2162,8 @@ private fun NutritionPlateAiContent(
                                 selected = userHint == dish,
                                 onClick = {
                                     userHint = dish
-                                    onAnalyzePhoto(null, dish)
+                                    useDescriptionContext = true
+                                    onAnalyzePhoto(capturedBitmap, dish)
                                 },
                                 label = { Text(dish) }
                             )
@@ -2257,7 +2463,8 @@ private fun NutritionGoalsAndHistoryContent(
         heightCm: Int,
         ageYears: Int,
         activity: NutritionActivityLevel,
-        goal: NutritionGoalType
+        goal: NutritionGoalType,
+        customDailyCalories: Int?
     ) -> Unit
 ) {
     var weightText by remember(profile.weightKg) {
@@ -2278,6 +2485,21 @@ private fun NutritionGoalsAndHistoryContent(
     var selectedGoal by remember(profile.goalType) {
         mutableStateOf(NutritionGoalType.fromName(profile.goalType))
     }
+    var customKcalText by remember(profile.dailyCalorieGoal) {
+        mutableStateOf(profile.dailyCalorieGoal.toString())
+    }
+
+    val currentWeightVal = weightText.replace(',', '.').toDoubleOrNull() ?: profile.weightKg
+    val currentHeightVal = heightText.toIntOrNull() ?: profile.heightCm
+    val currentAgeVal = ageText.toIntOrNull() ?: profile.ageYears
+    val maintenanceTdee = remember(currentWeightVal, currentHeightVal, currentAgeVal, selectedActivity) {
+        NutritionDomainHelper.estimateMaintenanceTdee(
+            weightKg = currentWeightVal,
+            heightCm = currentHeightVal,
+            ageYears = currentAgeVal,
+            activity = selectedActivity
+        )
+    }
 
     val previewProfile = remember(
         weightText,
@@ -2285,17 +2507,22 @@ private fun NutritionGoalsAndHistoryContent(
         heightText,
         ageText,
         selectedActivity,
-        selectedGoal
+        selectedGoal,
+        customKcalText
     ) {
+        val customParsed = customKcalText.trim().toIntOrNull()?.takeIf { it in 1200..6500 }
         NutritionDomainHelper.calculateTargets(
-            weightKg = weightText.replace(',', '.').toDoubleOrNull() ?: profile.weightKg,
+            weightKg = currentWeightVal,
             targetWeightKg = targetWeightText.replace(',', '.').toDoubleOrNull() ?: profile.targetWeightKg,
-            heightCm = heightText.toIntOrNull() ?: profile.heightCm,
-            ageYears = ageText.toIntOrNull() ?: profile.ageYears,
+            heightCm = currentHeightVal,
+            ageYears = currentAgeVal,
             activity = selectedActivity,
-            goal = selectedGoal
+            goal = selectedGoal,
+            customDailyCalories = customParsed
         )
     }
+
+    val activeSurplusDelta = previewProfile.dailyCalorieGoal - maintenanceTdee
 
     LazyColumn(
         modifier = Modifier
@@ -2321,12 +2548,12 @@ private fun NutritionGoalsAndHistoryContent(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "Calculadora de Metas (Mifflin-St Jeor)",
+                                text = "Metas y Superávit Calórico (Mifflin-St Jeor)",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = TextMoonlight
                             )
                             Text(
-                                text = "Ajusta tus parámetros para calcular TDEE, calorías y macros diarios",
+                                text = "Calcula tu gasto de mantenimiento + superávit o fija tus calorías estipuladas",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextMutedSlate
                             )
@@ -2398,7 +2625,16 @@ private fun NutritionGoalsAndHistoryContent(
                         NutritionActivityLevel.entries.forEach { level ->
                             FilterChip(
                                 selected = selectedActivity == level,
-                                onClick = { selectedActivity = level },
+                                onClick = {
+                                    selectedActivity = level
+                                    val newTdee = NutritionDomainHelper.estimateMaintenanceTdee(
+                                        weightKg = currentWeightVal,
+                                        heightCm = currentHeightVal,
+                                        ageYears = currentAgeVal,
+                                        activity = level
+                                    )
+                                    customKcalText = (newTdee + selectedGoal.calorieDelta).toString()
+                                },
                                 label = { Text(level.labelEs) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = SyncSuccessGreen.copy(alpha = 0.22f),
@@ -2416,7 +2652,7 @@ private fun NutritionGoalsAndHistoryContent(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Objetivo calórico:",
+                        text = "Fase / Objetivo (Superávit, Mantenimiento o Definición):",
                         style = MaterialTheme.typography.labelMedium,
                         color = TextStarlight
                     )
@@ -2430,7 +2666,10 @@ private fun NutritionGoalsAndHistoryContent(
                         NutritionGoalType.entries.forEach { goal ->
                             FilterChip(
                                 selected = selectedGoal == goal,
-                                onClick = { selectedGoal = goal },
+                                onClick = {
+                                    selectedGoal = goal
+                                    customKcalText = (maintenanceTdee + goal.calorieDelta).toString()
+                                },
                                 label = { Text(goal.labelEs) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = NocturnalAmber.copy(alpha = 0.25f),
@@ -2440,7 +2679,58 @@ private fun NutritionGoalsAndHistoryContent(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = customKcalText,
+                        onValueChange = { customKcalText = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Calorías diarias estipuladas (ej: 3150 kcal en Superávit)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("custom_calorie_goal_input")
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Resumen de Mantenimiento vs Superávit
+                    Surface(
+                        color = NightBgDeep,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MinimalHairline),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Mantenimiento (TDEE): $maintenanceTdee kcal",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMutedSlate
+                                )
+                                Text(
+                                    text = if (activeSurplusDelta >= 0) {
+                                        "Superávit aplicado: +$activeSurplusDelta kcal/día (Volumen)"
+                                    } else {
+                                        "Déficit aplicado: $activeSurplusDelta kcal/día (Definición)"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (activeSurplusDelta >= 0) NocturnalAmber else SyncSuccessGreen
+                                )
+                            }
+                            Text(
+                                text = "${previewProfile.dailyCalorieGoal} kcal",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = SyncSuccessGreen
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
                         modifier = Modifier
@@ -2462,12 +2752,13 @@ private fun NutritionGoalsAndHistoryContent(
                     Button(
                         onClick = {
                             onSaveGoals(
-                                weightText.replace(',', '.').toDoubleOrNull() ?: profile.weightKg,
+                                currentWeightVal,
                                 targetWeightText.replace(',', '.').toDoubleOrNull() ?: profile.targetWeightKg,
-                                heightText.toIntOrNull() ?: profile.heightCm,
-                                ageText.toIntOrNull() ?: profile.ageYears,
+                                currentHeightVal,
+                                currentAgeVal,
                                 selectedActivity,
-                                selectedGoal
+                                selectedGoal,
+                                customKcalText.trim().toIntOrNull()?.takeIf { it in 1200..6500 }
                             )
                         },
                         shape = RoundedCornerShape(14.dp),

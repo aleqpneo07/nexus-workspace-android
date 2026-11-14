@@ -42,11 +42,12 @@ class NutritionRepository(
             dao.upsertProfile(
                 NutritionDomainHelper.calculateTargets(
                     weightKg = 78.0,
-                    targetWeightKg = 74.0,
+                    targetWeightKg = 84.0,
                     heightCm = 180,
                     ageYears = 24,
-                    activity = NutritionActivityLevel.MODERATE,
-                    goal = NutritionGoalType.DEFICIT
+                    activity = NutritionActivityLevel.ACTIVE,
+                    goal = NutritionGoalType.BULK_HIGH,
+                    customDailyCalories = 3150
                 )
             )
         }
