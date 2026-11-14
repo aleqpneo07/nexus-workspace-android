@@ -25,9 +25,11 @@ import dev.quintero.nexus.feature.workout.WorkoutSessionEntity
         WorkoutSessionEntity::class,
         WorkoutDraftEntity::class,
         EnfoqueTaskEntity::class,
-        EnfoqueSubtaskEntity::class
+        EnfoqueSubtaskEntity::class,
+        dev.quintero.nexus.feature.progress.BodyProgressEntryEntity::class,
+        dev.quintero.nexus.feature.progress.BodyProgressProfileEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class NexusDatabase : RoomDatabase() {
@@ -35,6 +37,7 @@ abstract class NexusDatabase : RoomDatabase() {
     abstract fun nightTaskDao(): NightTaskDao
     abstract fun workoutDao(): WorkoutDao
     abstract fun enfoqueDao(): EnfoqueDao
+    abstract fun bodyProgressDao(): dev.quintero.nexus.feature.progress.BodyProgressDao
 
     companion object {
         @Volatile
@@ -113,6 +116,56 @@ abstract class NexusDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `body_progress_entries` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `dateIso` TEXT NOT NULL,
+                        `displayDate` TEXT NOT NULL,
+                        `isBaseEntry` INTEGER NOT NULL,
+                        `isPostponed` INTEGER NOT NULL,
+                        `weightKg` REAL,
+                        `deltaWeightKg` REAL,
+                        `bmi` REAL,
+                        `bodyFatPct` REAL,
+                        `deltaFatKg` REAL,
+                        `muscleKg` REAL,
+                        `deltaMuscleKg` REAL,
+                        `muscleQuality` INTEGER,
+                        `bodyType` INTEGER,
+                        `boneMassKg` REAL,
+                        `visceralFat` REAL,
+                        `bmrKcal` INTEGER,
+                        `clinicalBmrKcal` INTEGER,
+                        `metabolicAge` INTEGER,
+                        `waterPct` REAL,
+                        `postponeShortLabel` TEXT NOT NULL,
+                        `notes` TEXT NOT NULL,
+                        `updatedAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `body_progress_profile` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `athleteName` TEXT NOT NULL,
+                        `ageYears` INTEGER NOT NULL,
+                        `heightCm` INTEGER NOT NULL,
+                        `scaleModel` TEXT NOT NULL,
+                        `cycleDays` INTEGER NOT NULL,
+                        `baselineDateLabel` TEXT NOT NULL,
+                        `summerRefSummary` TEXT NOT NULL,
+                        `targetDescription` TEXT NOT NULL,
+                        `updatedAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): NexusDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -120,7 +173,7 @@ abstract class NexusDatabase : RoomDatabase() {
                     NexusDatabase::class.java,
                     "nexus_workspace.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

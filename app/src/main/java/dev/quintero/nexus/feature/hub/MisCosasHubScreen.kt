@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DonutLarge
+import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Sync
@@ -103,7 +104,8 @@ enum class MisCosasModule {
     MI_HORARIO,
     ENTRENO,
     NIGHT_PLANNER,
-    ENFOQUE
+    ENFOQUE,
+    PROGRESO_FISICO
 }
 
 @Composable
@@ -206,7 +208,8 @@ fun MisCosasHubScreen(
     syncState: MisCosasSyncUiState = MisCosasSyncUiState(),
     onConnectCloud: (String, String, (Result<String>) -> Unit) -> Unit = { _, _, cb -> cb(Result.success("")) },
     onSyncNow: ((Result<String>) -> Unit) -> Unit = { cb -> cb(Result.success("")) },
-    onDisconnectCloud: () -> Unit = {}
+    onDisconnectCloud: () -> Unit = {},
+    bodyProgressUiState: dev.quintero.nexus.feature.progress.BodyProgressUiState = dev.quintero.nexus.feature.progress.BodyProgressUiState()
 ) {
     val todayHuman = DateTimeHelper.formatFullDayShortEs(DateTimeHelper.todayIso())
     val uniLive = remember { UniversityScheduleRepository.resolveLiveStatus() }
@@ -368,6 +371,32 @@ fun MisCosasHubScreen(
                     bubbleColor = EnfoqueCoralContainer,
                     testTag = "hub_card_enfoque",
                     onClick = { onOpenModule(MisCosasModule.ENFOQUE) }
+                )
+            }
+
+            item {
+                val latest = bodyProgressUiState.latestValidEntry
+                val progressSubtitle = if (latest?.weightKg != null) {
+                    val weightText = dev.quintero.nexus.feature.progress.BodyProgressDomainHelper.formatEs2(latest.weightKg)
+                    val musclePart = latest.muscleKg?.let { m ->
+                        " · Músculo ${dev.quintero.nexus.feature.progress.BodyProgressDomainHelper.formatEs1(m)} kg"
+                    }.orEmpty()
+                    "$weightText kg$musclePart"
+                } else {
+                    "Seguimiento corporal y bioimpedancia"
+                }
+                val progressBadge = bodyProgressUiState.nextWeighIn?.let { next ->
+                    "Próx. ${next.nextDisplayDate}"
+                }
+                MinimalHubModuleCard(
+                    title = "Progreso físico",
+                    subtitle = progressSubtitle,
+                    metaBadge = progressBadge,
+                    icon = Icons.Outlined.MonitorWeight,
+                    accentColor = dev.quintero.nexus.core.design.SyncSuccessGreen,
+                    bubbleColor = dev.quintero.nexus.core.design.SyncSuccessGreen.copy(alpha = 0.14f),
+                    testTag = "hub_card_progreso",
+                    onClick = { onOpenModule(MisCosasModule.PROGRESO_FISICO) }
                 )
             }
 

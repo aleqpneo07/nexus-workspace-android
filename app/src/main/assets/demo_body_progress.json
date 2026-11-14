@@ -1,0 +1,62 @@
+{
+  "profile": {
+    "athleteName": "Atleta Demo",
+    "ageYears": 25,
+    "heightCm": 178,
+    "scaleModel": "Bioimpedancia Segmental",
+    "cycleDays": 14,
+    "baselineDateLabel": "Inicio Ciclo",
+    "summerRefSummary": "",
+    "targetDescription": "Objetivo: Ganancia muscular controlada y recomposición corporal"
+  },
+  "entries": [
+    {
+      "id": "bp-demo-1",
+      "dateIso": "2026-10-01",
+      "displayDate": "01/10",
+      "isBaseEntry": true,
+      "isPostponed": false,
+      "weightKg": 75.00,
+      "deltaWeightKg": null,
+      "bmi": 23.67,
+      "bodyFatPct": 14.5,
+      "deltaFatKg": null,
+      "muscleKg": 61.0,
+      "deltaMuscleKg": null,
+      "muscleQuality": 76,
+      "bodyType": 5,
+      "boneMassKg": 3.1,
+      "visceralFat": 2.0,
+      "bmrKcal": 2150,
+      "clinicalBmrKcal": 1743,
+      "metabolicAge": 20,
+      "waterPct": 61.2,
+      "postponeShortLabel": "",
+      "notes": "Medición inicial de ejemplo."
+    },
+    {
+      "id": "bp-demo-2",
+      "dateIso": "2026-10-15",
+      "displayDate": "15/10",
+      "isBaseEntry": false,
+      "isPostponed": false,
+      "weightKg": 75.80,
+      "deltaWeightKg": 0.80,
+      "bmi": 23.92,
+      "bodyFatPct": 14.6,
+      "deltaFatKg": 0.19,
+      "muscleKg": 61.6,
+      "deltaMuscleKg": 0.6,
+      "muscleQuality": 77,
+      "bodyType": 5,
+      "boneMassKg": 3.1,
+      "visceralFat": 2.0,
+      "bmrKcal": 2180,
+      "clinicalBmrKcal": 1751,
+      "metabolicAge": 20,
+      "waterPct": 61.5,
+      "postponeShortLabel": "",
+      "notes": ""
+    }
+  ]
+}

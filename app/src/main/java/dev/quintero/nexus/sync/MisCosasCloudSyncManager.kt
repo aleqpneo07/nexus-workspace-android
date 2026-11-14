@@ -7,6 +7,8 @@ import dev.quintero.nexus.core.database.NexusDatabase
 import dev.quintero.nexus.feature.focus.EnfoqueCloudAccount
 import dev.quintero.nexus.feature.focus.EnfoqueNtfySyncService
 import dev.quintero.nexus.feature.focus.EnfoqueRepository
+import dev.quintero.nexus.feature.progress.BodyProgressRepository
+import dev.quintero.nexus.feature.progress.toDto
 import dev.quintero.nexus.sync.MisCosasSyncEngine.toCloudDto
 import dev.quintero.nexus.feature.workout.WorkoutRepository
 import com.squareup.moshi.Moshi
@@ -45,6 +47,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
     private val nightDao = db.nightTaskDao()
     private val workoutRepo = WorkoutRepository(db.workoutDao())
     private val enfoqueRepo = EnfoqueRepository(appContext, db.enfoqueDao())
+    private val progressRepo = BodyProgressRepository(appContext, db.bodyProgressDao())
 
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences("nexus_cloud_prefs", Context.MODE_PRIVATE)
@@ -55,6 +58,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
 
     private val workoutEnvAdapter = moshi.adapter(WorkoutCloudEnvelope::class.java)
     private val nightEnvAdapter = moshi.adapter(NightCloudEnvelope::class.java)
+    private val progressEnvAdapter = moshi.adapter(BodyProgressCloudEnvelope::class.java)
     private val tombstoneMapType =
         Types.newParameterizedType(Map::class.java, String::class.java, Long::class.javaObjectType)
     private val tombstoneAdapter = moshi.adapter<Map<String, Long>>(tombstoneMapType)
@@ -109,6 +113,11 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
             activeKeyBytes = null
             return MisCosasSyncUiState(isConnected = false)
         }
+        val progressTopic = prefs.getString(KEY_PROGRESS_TOPIC, "").orEmpty().ifBlank {
+            MisCosasSyncEngine.deriveBodyProgressTopic(id, keyB64).also { derived ->
+                prefs.edit().putString(KEY_PROGRESS_TOPIC, derived).apply()
+            }
+        }
         activeKeyBytes = keyBytes
         return MisCosasSyncUiState(
             isConnected = true,
@@ -116,6 +125,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
             enfoqueTopicId = enfoqueTopic,
             entrenoTopicId = entrenoTopic,
             nightTopicId = nightTopic,
+            progressTopicId = progressTopic,
             lastSyncAtMillis = lastSync
         )
     }
@@ -152,6 +162,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                     MisCosasSyncEngine.deriveAllTopics(cleanId, cleanPass)
                 val keyBytes = SyncCryptoManager.deriveKeyBytes(cleanId, cleanPass)
                 val keyB64 = SyncCryptoManager.encodeKeyBase64(keyBytes)
+                val progressTopic = MisCosasSyncEngine.deriveBodyProgressTopic(cleanId, keyB64)
                 activeKeyBytes = keyBytes
                 prefs.edit()
                     .putString(KEY_IDENTIFIER, cleanId)
@@ -159,6 +170,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                     .putString(KEY_ENFOQUE_TOPIC, enfoqueTopic)
                     .putString(KEY_ENTRENO_TOPIC, entrenoTopic)
                     .putString(KEY_NIGHT_TOPIC, nightTopic)
+                    .putString(KEY_PROGRESS_TOPIC, progressTopic)
                     .apply()
                 enfoqueRepo.connectCloudAccount(cleanId, cleanPass)
 
@@ -169,6 +181,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                         enfoqueTopicId = enfoqueTopic,
                         entrenoTopicId = entrenoTopic,
                         nightTopicId = nightTopic,
+                        progressTopicId = progressTopic,
                         isSyncing = true,
                         lastSyncAtMillis = it.lastSyncAtMillis,
                         lastError = null
@@ -179,7 +192,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                 if (isAppInForeground) {
                     restartLiveStreamLocked()
                 }
-                "Nube E2EE conectada para $cleanId (Enfoque, Entreno y Night Planner)"
+                "Nube E2EE conectada para $cleanId (Enfoque, Entreno, Night Planner y Progreso físico)"
             }.onSuccess { msg ->
                 scope.launch(Dispatchers.Main) {
                     onComplete?.invoke(Result.success(msg))
@@ -211,6 +224,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                 .remove(KEY_ENFOQUE_TOPIC)
                 .remove(KEY_ENTRENO_TOPIC)
                 .remove(KEY_NIGHT_TOPIC)
+                .remove(KEY_PROGRESS_TOPIC)
                 .remove(KEY_LAST_SYNC_MILLIS)
                 .apply()
             enfoqueRepo.disconnectCloudAccount()
@@ -286,6 +300,14 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
         notifyLocalMutation(SyncModule.NIGHT_PLANNER)
     }
 
+    fun markBodyProgressDeleted(entryId: String) {
+        if (entryId.isBlank()) return
+        val map = loadTombstones(KEY_PROGRESS_TOMBSTONES).toMutableMap()
+        map[entryId] = System.currentTimeMillis()
+        saveTombstones(KEY_PROGRESS_TOMBSTONES, map)
+        notifyLocalMutation(SyncModule.PROGRESO_FISICO)
+    }
+
     fun notifyLocalMutation(module: SyncModule) {
         if (!_syncState.value.isConnected) return
         synchronized(mutationJobs) {
@@ -298,6 +320,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                         when (module) {
                             SyncModule.ENTRENO -> syncEntrenoLocked(forcePushLocal = true)
                             SyncModule.NIGHT_PLANNER -> syncNightLocked(forcePushLocal = true)
+                            SyncModule.PROGRESO_FISICO -> syncProgressLocked(forcePushLocal = true)
                             SyncModule.ENFOQUE -> {
                                 getCurrentEnfoqueAccount()?.let { acc ->
                                     enfoqueRepo.pushCloudSnapshot(acc)
@@ -330,6 +353,9 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
 
             val nightUpdated = syncNightLocked(forcePushLocal = false)
             if (nightUpdated) updates += "Night Planner"
+
+            val progressUpdated = syncProgressLocked(forcePushLocal = false)
+            if (progressUpdated) updates += "Progreso físico"
 
             val summary = if (updates.isEmpty()) {
                 "Todo al día"
@@ -413,6 +439,70 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                 syncId = syncId,
                 senderDeviceId = deviceId,
                 title = "Nexus Workout E2EE"
+            )
+        }
+
+        return merge.changedLocal
+    }
+
+    private suspend fun syncProgressLocked(forcePushLocal: Boolean): Boolean {
+        val topicId = _syncState.value.progressTopicId
+        val keyBytes = activeKeyBytes
+        if (topicId.isBlank() || keyBytes == null) return false
+
+        progressRepo.ensureSeededIfEmpty()
+        val localProfile = progressRepo.getProfileOrDefault()
+        val localEntries = progressRepo.getAllEntries()
+        val localTombstones = loadTombstones(KEY_PROGRESS_TOMBSTONES)
+
+        val remoteEnv = fetchLatestEnvelope(topicId, keyBytes) { json ->
+            runCatching { progressEnvAdapter.fromJson(json) }.getOrNull()
+        }
+
+        val remoteEntries = remoteEnv?.entries.orEmpty()
+        val remoteTombstones = remoteEnv?.deletedIds?.associate { it.id to it.deletedAtMillis }.orEmpty()
+
+        val merge = MisCosasSyncEngine.mergeBodyProgress(
+            localProfile = localProfile,
+            localEntries = localEntries,
+            localTombstones = localTombstones,
+            remoteProfile = remoteEnv?.profile,
+            remoteEntries = remoteEntries,
+            remoteTombstones = remoteTombstones
+        )
+
+        saveTombstones(KEY_PROGRESS_TOMBSTONES, merge.mergedTombstones)
+
+        if (merge.changedLocal) {
+            progressRepo.replaceAllFromSync(merge.mergedProfile, merge.mergedEntries)
+        }
+
+        val shouldPush = forcePushLocal ||
+            remoteEnv == null ||
+            merge.shouldPushBack ||
+            merge.changedLocal
+
+        if (shouldPush) {
+            val syncId = UUID.randomUUID().toString()
+            trackSelfSyncId(syncId)
+            val outbound = BodyProgressCloudEnvelope(
+                version = 1,
+                updatedAt = System.currentTimeMillis(),
+                senderDeviceId = deviceId,
+                syncId = syncId,
+                profile = merge.mergedProfile.toDto(),
+                entries = merge.mergedEntries.map { it.toDto() },
+                deletedIds = merge.mergedTombstones.map { (id, ts) ->
+                    BodyProgressDeletedEntry(id = id, deletedAtMillis = ts)
+                }
+            )
+            publishEncryptedEnvelope(
+                topicId = topicId,
+                keyBytes = keyBytes,
+                plaintextJson = progressEnvAdapter.toJson(outbound),
+                syncId = syncId,
+                senderDeviceId = deviceId,
+                title = "Nexus Progress E2EE"
             )
         }
 
@@ -517,6 +607,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
         SyncModule.ENFOQUE -> "Enfoque enviado a la nube"
         SyncModule.ENTRENO -> "Entreno enviado a la nube"
         SyncModule.NIGHT_PLANNER -> "Night Planner enviado a la nube"
+        SyncModule.PROGRESO_FISICO -> "Progreso físico enviado a la nube"
     }
 
     private fun restartLiveStreamLocked() {
@@ -524,7 +615,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
         activeStreamCall?.cancel()
         val st = _syncState.value
         if (!st.isConnected) return
-        val topicsCsv = listOf(st.enfoqueTopicId, st.entrenoTopicId, st.nightTopicId)
+        val topicsCsv = listOf(st.enfoqueTopicId, st.entrenoTopicId, st.nightTopicId, st.progressTopicId)
             .filter { it.isNotBlank() }
             .joinToString(",") { URLEncoder.encode(it, "UTF-8") }
         if (topicsCsv.isBlank()) return
@@ -587,6 +678,7 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
             st.enfoqueTopicId -> SyncModule.ENFOQUE
             st.entrenoTopicId -> SyncModule.ENTRENO
             st.nightTopicId -> SyncModule.NIGHT_PLANNER
+            st.progressTopicId -> SyncModule.PROGRESO_FISICO
             else -> null
         } ?: return
 
@@ -598,12 +690,14 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
                 }
                 SyncModule.ENTRENO -> syncEntrenoLocked(forcePushLocal = false)
                 SyncModule.NIGHT_PLANNER -> syncNightLocked(forcePushLocal = false)
+                SyncModule.PROGRESO_FISICO -> syncProgressLocked(forcePushLocal = false)
             }
             if (changed) {
                 val label = when (targetModule) {
                     SyncModule.ENFOQUE -> "Enfoque actualizado desde otro dispositivo"
                     SyncModule.ENTRENO -> "Entreno actualizado desde otro dispositivo"
                     SyncModule.NIGHT_PLANNER -> "Night Planner actualizado desde otro dispositivo"
+                    SyncModule.PROGRESO_FISICO -> "Progreso físico actualizado desde otro dispositivo"
                 }
                 markSyncSuccess(label)
             }
@@ -715,10 +809,12 @@ class MisCosasCloudSyncManager private constructor(context: Context) {
         private const val KEY_ENFOQUE_TOPIC = "enfoque_topic_id"
         private const val KEY_ENTRENO_TOPIC = "entreno_topic_id"
         private const val KEY_NIGHT_TOPIC = "night_topic_id"
+        private const val KEY_PROGRESS_TOPIC = "progress_topic_id"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_LAST_SYNC_MILLIS = "last_sync_millis"
         private const val KEY_WORKOUT_TOMBSTONES = "workout_tombstones_json"
         private const val KEY_NIGHT_TOMBSTONES = "night_tombstones_json"
+        private const val KEY_PROGRESS_TOMBSTONES = "progress_tombstones_json"
 
         @Volatile
         private var INSTANCE: MisCosasCloudSyncManager? = null

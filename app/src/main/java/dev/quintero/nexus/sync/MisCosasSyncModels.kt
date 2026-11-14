@@ -1,6 +1,11 @@
 package dev.quintero.nexus.sync
 
 import dev.quintero.nexus.feature.planner.NightTaskEntity
+import dev.quintero.nexus.feature.progress.BodyProgressEntryDto
+import dev.quintero.nexus.feature.progress.BodyProgressEntryEntity
+import dev.quintero.nexus.feature.progress.BodyProgressProfileDto
+import dev.quintero.nexus.feature.progress.BodyProgressProfileEntity
+import dev.quintero.nexus.feature.progress.toEntity
 import dev.quintero.nexus.feature.workout.WorkoutLoggedExerciseDto
 import dev.quintero.nexus.feature.workout.WorkoutSessionModel
 import com.squareup.moshi.Json
@@ -10,7 +15,8 @@ import java.time.Instant
 enum class SyncModule {
     ENFOQUE,
     ENTRENO,
-    NIGHT_PLANNER
+    NIGHT_PLANNER,
+    PROGRESO_FISICO
 }
 
 data class MisCosasSyncUiState(
@@ -19,6 +25,7 @@ data class MisCosasSyncUiState(
     val enfoqueTopicId: String = "",
     val entrenoTopicId: String = "",
     val nightTopicId: String = "",
+    val progressTopicId: String = "",
     val isSyncing: Boolean = false,
     val isLiveConnected: Boolean = false,
     val lastSyncAtMillis: Long? = null,
@@ -96,6 +103,29 @@ data class NightMergeResult(
     val shouldPushBack: Boolean
 )
 
+data class BodyProgressDeletedEntry(
+    @Json(name = "id") val id: String,
+    @Json(name = "deletedAt") val deletedAtMillis: Long = 0L
+)
+
+data class BodyProgressCloudEnvelope(
+    @Json(name = "version") val version: Int = 1,
+    @Json(name = "updatedAt") val updatedAt: Long = 0L,
+    @Json(name = "senderDeviceId") val senderDeviceId: String = "",
+    @Json(name = "syncId") val syncId: String = "",
+    @Json(name = "profile") val profile: BodyProgressProfileDto = BodyProgressProfileDto(),
+    @Json(name = "entries") val entries: List<BodyProgressEntryDto> = emptyList(),
+    @Json(name = "deletedIds") val deletedIds: List<BodyProgressDeletedEntry> = emptyList()
+)
+
+data class BodyProgressMergeResult(
+    val mergedProfile: BodyProgressProfileEntity,
+    val mergedEntries: List<BodyProgressEntryEntity>,
+    val mergedTombstones: Map<String, Long>,
+    val changedLocal: Boolean,
+    val shouldPushBack: Boolean
+)
+
 object MisCosasSyncEngine {
 
     fun deriveTopicId(
@@ -121,6 +151,10 @@ object MisCosasSyncEngine {
         val entreno = deriveTopicId("nexus_workout_", "nexus_workout", identifier, password.trim())
         val night = deriveTopicId("nexus_planner_", "nexus_planner", identifier, password.trim())
         return Triple(enfoque, entreno, night)
+    }
+
+    fun deriveBodyProgressTopic(identifier: String, keyBase64: String): String {
+        return deriveTopicId("nexus_progress_", "nexus_progress", identifier, keyBase64.trim())
     }
 
     fun parseIsoToMillis(iso: String?): Long {
@@ -356,6 +390,109 @@ object MisCosasSyncEngine {
             completedAtMillis = completedAtMillis,
             createdAtMillis = createdAtMillis,
             updatedAtMillis = maxOf(updatedAtMillis, createdAtMillis)
+        )
+    }
+
+    /**
+     * Conflict-free LWW union merge for Progreso físico weigh-in entries and athlete profile.
+     */
+    fun mergeBodyProgress(
+        localProfile: BodyProgressProfileEntity,
+        localEntries: List<BodyProgressEntryEntity>,
+        localTombstones: Map<String, Long>,
+        remoteProfile: BodyProgressProfileDto?,
+        remoteEntries: List<BodyProgressEntryDto>,
+        remoteTombstones: Map<String, Long>
+    ): BodyProgressMergeResult {
+        val mergedTombstones = HashMap<String, Long>(localTombstones)
+        remoteTombstones.forEach { (id, ts) ->
+            val prev = mergedTombstones[id] ?: 0L
+            if (ts > prev) mergedTombstones[id] = ts
+        }
+
+        var changedLocal = false
+        var shouldPushBack = false
+
+        val mergedProfile = if (remoteProfile != null && remoteProfile.athleteName.isNotBlank()) {
+            when {
+                remoteProfile.updatedAtMillis > localProfile.updatedAtMillis -> {
+                    val entity = remoteProfile.toEntity()
+                    if (entity != localProfile) changedLocal = true
+                    entity
+                }
+                localProfile.updatedAtMillis > remoteProfile.updatedAtMillis -> {
+                    shouldPushBack = true
+                    localProfile
+                }
+                else -> localProfile
+            }
+        } else {
+            shouldPushBack = true
+            localProfile
+        }
+
+        val localMap = localEntries.associateBy { it.id }
+        val remoteMap = remoteEntries.associate { it.id to it.toEntity() }
+        val allIds = (localMap.keys + remoteMap.keys).toSet()
+        val mergedList = mutableListOf<BodyProgressEntryEntity>()
+
+        for (id in allIds) {
+            val l = localMap[id]
+            val r = remoteMap[id]
+            val deletedTs = mergedTombstones[id] ?: 0L
+
+            val winner: BodyProgressEntryEntity? = when {
+                l != null && r != null -> {
+                    val maxTs = maxOf(l.updatedAtMillis, r.updatedAtMillis)
+                    if (deletedTs > maxTs) {
+                        changedLocal = true
+                        null
+                    } else if (r.updatedAtMillis > l.updatedAtMillis) {
+                        if (r != l) changedLocal = true
+                        r
+                    } else if (l.updatedAtMillis > r.updatedAtMillis) {
+                        shouldPushBack = true
+                        l
+                    } else {
+                        l
+                    }
+                }
+                l != null -> {
+                    if (deletedTs > 0L && deletedTs >= l.updatedAtMillis) {
+                        changedLocal = true
+                        null
+                    } else {
+                        shouldPushBack = true
+                        l
+                    }
+                }
+                r != null -> {
+                    if (deletedTs > 0L && deletedTs >= r.updatedAtMillis) {
+                        shouldPushBack = true
+                        null
+                    } else {
+                        changedLocal = true
+                        r
+                    }
+                }
+                else -> null
+            }
+
+            if (winner != null) {
+                mergedList += winner
+            }
+        }
+
+        val sorted = mergedList.sortedWith(
+            compareBy<BodyProgressEntryEntity> { it.dateIso }.thenBy { it.id }
+        )
+
+        return BodyProgressMergeResult(
+            mergedProfile = mergedProfile,
+            mergedEntries = sorted,
+            mergedTombstones = mergedTombstones,
+            changedLocal = changedLocal,
+            shouldPushBack = shouldPushBack
         )
     }
 }
